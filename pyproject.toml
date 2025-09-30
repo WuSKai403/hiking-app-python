@@ -4,7 +4,7 @@
 name = "hiking-weather-guide"
 version = "0.1.0"
 description = "AI 登山天氣指南 MVP 專案"
-requires-python = ">=3.11" # 使用 Python 3.11+
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.111.0",
     "uvicorn[standard]>=0.30.0",
