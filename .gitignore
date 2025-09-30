@@ -128,3 +128,19 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Python 虛擬環境
+.venv/
+venv/
+*.pyc
+__pycache__/
+
+# 構建/臨時檔案 (例如您提供的圖片中的檔案)
+# 確保忽略所有 egg-info 資料夾
+*.egg-info/
+.eggs/
+
+# 測試/日誌/資料檔案
+.pytest_cache/
+*.log
+data/

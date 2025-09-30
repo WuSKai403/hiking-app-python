@@ -1,0 +1,22 @@
+# pyproject.toml
+
+[project]
+name = "hiking-weather-guide"
+version = "0.1.0"
+description = "AI 登山天氣指南 MVP 專案"
+requires-python = ">=3.11" # 使用 Python 3.11+
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.0",
+    "motor>=3.3.2",
+    "pydantic>=2.7.4",
+    "google-genai>=0.15.0",
+    "python-multipart>=0.0.9",
+    "pydantic-settings>=2.11.0",
+    "uv>=0.8.22",
+    "pre-commit>=4.3.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"

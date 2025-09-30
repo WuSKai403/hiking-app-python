@@ -1,0 +1,31 @@
+# .pre-commit-config.yaml
+# 最佳實踐：使用 Ruff 取代 Black/isort/autoflake
+default_install_hook_types:
+  - pre-commit
+  - pre-push
+
+repos:
+  # 1. 基本檔案檢查
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0 # 使用最新穩定版
+    hooks:
+      - id: check-added-large-files
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict # 增加檢查合併衝突
+
+  # 2. 核心 Python 程式碼規範與格式化 (Ruff)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.7 # 使用最新穩定版
+    hooks:
+      # 格式化：取代 Black 和 isort
+      - id: ruff-format
+        name: Ruff Format (Black/isort Replacement)
+        types_or: [python, pyi, jupyter]
+
+      # Linting：取代 autoflake 和傳統 Linters
+      - id: ruff
+        name: Ruff Linting (Linter/Autoflake Replacement)
+        args: [--fix, --exit-non-zero-on-fix]
+        types_or: [python, pyi, jupyter]
