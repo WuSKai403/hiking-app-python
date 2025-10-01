@@ -25,6 +25,9 @@ jobs:
           - 27017:27017 # 將容器的 27017 埠映射出來
         options: --name mongodb_ci
 
+    environment:
+      name: integration_ci # github environment name
+
     steps:
     - name: ⬇️ 檢查程式碼
       uses: actions/checkout@v4
