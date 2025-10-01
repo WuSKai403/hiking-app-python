@@ -1,0 +1,55 @@
+# .github/workflows/ci.yml
+name: Python CI (uv + Ruff)
+
+on:
+  # 每次 push 到 main 或 pull request 時觸發
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 測試最新的 Python 版本
+        python-version: ["3.11", "3.12"]
+
+    steps:
+    - name: ⬇️ 檢查程式碼
+      uses: actions/checkout@v4
+
+    - name: 🐍 設置 Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    # --- 關鍵步驟：使用 UV 進行安裝與同步 ---
+    - name: ⚙️ 安裝 UV (Rust-based Package Manager)
+      run: pip install uv
+
+    - name: 🔒 檢查 UV 鎖定檔是否是最新的 (Check Lockfile Freshness)
+      # uv lock --check 會確保 pyproject.toml 的變動已經同步到 uv.lock
+      run: uv lock --check
+
+    - name: 📦 同步虛擬環境並安裝依賴
+      run: uv sync --with test # 安裝主依賴和測試依賴
+
+    # --- 程式碼品質檢查 (Ruff) ---
+    - name: 🧹 運行 Ruff Linter (Linting)
+      # 使用 uv run 確保 Ruff 在正確的環境內執行
+      run: uv run ruff check .
+
+    - name: 💅 運行 Ruff Formatter (格式檢查)
+      # 確保所有程式碼都已格式化 (僅檢查，不修改)
+      run: uv run ruff format . --check
+
+    # --- 核心單元/API 測試 (Pytest) ---
+    - name: 🧪 運行 Pytest 測試
+      # 設定 GEMINI_API_KEY 讓 AI 服務能夠運行 (使用 Secrets 避免洩漏)
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
+        MONGO_URI: "mongodb://localhost:27017" # CI 環境中可以模擬或使用假的連線
+      run: uv run pytest tests/

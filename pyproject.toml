@@ -15,8 +15,27 @@ dependencies = [
     "pydantic-settings>=2.11.0",
     "uv>=0.8.22",
     "pre-commit>=4.3.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "httpx>=0.28.1",
+    "asgi-lifespan>=2.1.0",
+    "pytest-mock>=3.15.1",
+    "anyio>=4.11.0",
 ]
 
 [build-system]
 requires = ["setuptools>=61.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# 告訴 setuptools，唯一需要打包的 package 就在名為 'app' 的資料夾中
+packages = ["app"]
+
+[tool.pytest.ini_options]
+# 將專案的根目錄 (通常是 . ) 加入到 Python 的搜尋路徑中
+# 這能確保在 tests/ 內也能找到 main.py 和 app/
+pythonpath = ["."]
+asyncio_mode = "auto"
+markers = [
+    "integration: marks tests that require external API calls (expensive/slow)",
+]

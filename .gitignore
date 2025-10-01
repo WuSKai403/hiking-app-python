@@ -144,3 +144,4 @@ __pycache__/
 .pytest_cache/
 *.log
 data/
+.todo.md
