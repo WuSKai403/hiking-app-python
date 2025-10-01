@@ -22,8 +22,7 @@ jobs:
         image: mongo:latest # 使用官方的 MongoDB 映像檔
         ports:
           - 27017:27017 # 將容器的 27017 埠映射出來
-        options: >
-          --name mongodb_ci
+        options: --name mongodb_ci
 
     steps:
     - name: ⬇️ 檢查程式碼
