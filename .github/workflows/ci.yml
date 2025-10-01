@@ -33,6 +33,10 @@ jobs:
       # uv lock --check 會確保 pyproject.toml 的變動已經同步到 uv.lock
       run: uv lock --check
 
+    - name: 🌐 建立虛擬環境 (Virtual Environment)
+      # uv venv 會在專案根目錄創建一個 .venv 資料夾
+      run: uv venv
+
     - name: 📦 同步虛擬環境並安裝依賴 (修正為 uv pip install)
        # 使用 'uv pip install .' 來安裝專案本身的主依賴 (從 pyproject.toml 的 [project])
        # 使用 '--with test' 來額外安裝 'test' 依賴組 (從 [project.optional-dependencies] 或 [tool.uv.dev-dependencies])
