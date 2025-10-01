@@ -40,7 +40,7 @@ jobs:
     - name: 📦 同步虛擬環境並安裝依賴 (修正為 uv pip install)
        # 使用 'uv pip install .' 來安裝專案本身的主依賴 (從 pyproject.toml 的 [project])
        # 使用 '--with test' 來額外安裝 'test' 依賴組 (從 [project.optional-dependencies] 或 [tool.uv.dev-dependencies])
-      run: uv pip install --group test .
+      run: uv pip install --group dev .
 
     - name: 🧹 運行 Ruff Linter (Linting)
       # 使用 uv run 確保 Ruff 在正確的環境內執行
