@@ -23,7 +23,7 @@ jobs:
         ports:
           - 27017:27017 # 將容器的 27017 埠映射出來
         options: >
-          --name mongodb_ci # 給容器一個名稱
+          --name mongodb_ci
 
     steps:
     - name: ⬇️ 檢查程式碼
