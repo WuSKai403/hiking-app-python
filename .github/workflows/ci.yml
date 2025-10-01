@@ -33,10 +33,11 @@ jobs:
       # uv lock --check 會確保 pyproject.toml 的變動已經同步到 uv.lock
       run: uv lock --check
 
-    - name: 📦 同步虛擬環境並安裝依賴
-      run: uv sync --with test # 安裝主依賴和測試依賴
+    - name: 📦 同步虛擬環境並安裝依賴 (修正為 uv pip install)
+       # 使用 'uv pip install .' 來安裝專案本身的主依賴 (從 pyproject.toml 的 [project])
+       # 使用 '--with test' 來額外安裝 'test' 依賴組 (從 [project.optional-dependencies] 或 [tool.uv.dev-dependencies])
+      run: uv pip install --with test .
 
-    # --- 程式碼品質檢查 (Ruff) ---
     - name: 🧹 運行 Ruff Linter (Linting)
       # 使用 uv run 確保 Ruff 在正確的環境內執行
       run: uv run ruff check .
@@ -45,11 +46,27 @@ jobs:
       # 確保所有程式碼都已格式化 (僅檢查，不修改)
       run: uv run ruff format . --check
 
-    # --- 核心單元/API 測試 (Pytest) ---
-    - name: 🧪 運行 Pytest 測試
-      # 設定 GEMINI_API_KEY 讓 AI 服務能夠運行 (使用 Secrets 避免洩漏)
+   # --- 核心測試步驟 ---
+
+    # 1. 🧪 運行單元測試 (Unit Tests - UT)
+    # 目的：運行所有不包含 'integration' 標記的測試。
+    # 特點：不需要外部網路連線，速度最快，是每次 PR 的主要防線。
+    - name: 🚀 運行單元/API 模擬測試 (UT)
+      # UT 只需要模擬的 MONGO_URI，不需要真實的 AI 金鑰
       env:
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
-        MONGO_URI: "mongodb://localhost:27017" # CI 環境中可以模擬或使用假的連線
-      run: uv run pytest tests/
+        MONGO_URI: "mongodb://localhost:27017"
+      # -m "not integration" 確保只運行不需要真實連線的 Mocked 測試
+      run: uv run pytest tests/ -m "not integration"
+
+    # 2. 🌍 運行整合測試 (Integration Tests) - 獨立步驟
+    # 目的：檢查與真實 Gemini/CWA API 的連線和回應格式。
+    # 特點：需要真實的金鑰和網路連線。
+    - name: 🌐 運行真實整合測試 (Integration Tests)
+      # ⚠️ 僅在 main 分支 push 時執行 或 手動啟用時才執行，以節省 API 費用
+      if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # 必須使用真實金鑰
+        CWA_API_KEY: ${{ secrets.CWA_API_KEY }}       # 必須使用真實金鑰
+        MONGO_URI: "mongodb://localhost:27017" # 保持一致，除非整合測試需要真實 DB
+      # -m "integration" 確保只運行帶有整合標記的測試
+      run: uv run pytest tests/ -m "integration"
