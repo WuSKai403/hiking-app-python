@@ -50,3 +50,51 @@ async def test_post_recommendation_success(async_client: AsyncClient, mocker):
     # 檢查是否收到了我們模擬的結果
     assert response_json["safety_score"] == 4
     assert response_json["data_source"] == "Mocked AI Response"
+
+
+# @pytest.mark.asyncio
+# async def test_get_hiking_reviews(async_client: AsyncClient):
+#     # 測試獲取健行評論的 function test_get_hiking_reviews
+#     trail_id = "108"  # 使用 MVP 階段的測試 ID
+#     reviews = await get_hiking_reviews(trail_id)
+#     print("Fetched Reviews:", reviews)
+#     assert isinstance(reviews, str)
+#     assert len(reviews) > 0  # 確保有返回一些評論內容
+
+
+# # get_cwa_data_for_ai 測試function是否能正常使用
+# @pytest.mark.asyncio
+# async def test_get_cwa_data_for_ai(async_client: AsyncClient):
+#     trail_id = "108"  # 使用 MVP 階段的測試 ID
+#     cwa_data = await get_cwa_data_for_ai(trail_id)
+#     print("Fetched CWA Data:", cwa_data)
+#     assert isinstance(cwa_data, str)
+#     assert len(cwa_data) > 0  # 確保有返回一些氣象內容
+
+
+# # /api/recommendation 的整合測試
+# # 這個測試會實際呼叫 Gemini API 和 CWA API
+# # 因此需要設定環境變數 GEMINI_API_KEY 和 CWA_API_KEY
+# @pytest.mark.asyncio
+# @pytest.mark.integration  # 給這個測試一個專屬標記
+# async def test_post_recommendation_integration(async_client: AsyncClient):
+#     # 建立一個模擬的輸入數據，確保 AI 能獲得足夠的上下文
+#     test_request = RecommendationRequest(
+#         trail_id="Testing-001",
+#         user_path_desc="測試連線與 JSON 格式，請簡單回答。",
+#     )
+
+#     response = await async_client.post(
+#         "/api/recommendation", json=test_request.model_dump()
+#     )
+
+#     assert response.status_code == 200
+#     response_json = response.json()
+#     print("Integration Test Response:", response_json)
+#     # 驗證 AI 輸出的結構和內容
+#     assert "safety_score" in response_json
+#     assert 1 <= response_json["safety_score"] <= 5
+#     assert "recommendation" in response_json
+#     assert "reasoning" in response_json
+#     assert "data_source" in response_json
+#     assert response_json["data_source"] == "Gemini Real-time"
