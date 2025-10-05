@@ -141,24 +141,30 @@ async def get_cwa_data_for_ai(trail_id: str) -> str:
     weather_url = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0001-001"
     # ... (呼叫 API 取得 weather_json_data)
     weather_json_data = await get_cwa_api(weather_url, station_map["O-A0001-001"])
-    # 假設您已取得 JSON 數據 weather_json_data
 
-    # 呼叫轉換器
-    weather_summary = transform_observation_data(
-        weather_json_data, station_map["O-A0001-001"]
-    )
+    # 檢查 API 回傳結果：如果是字串，表示是錯誤訊息，直接使用
+    if isinstance(weather_json_data, str):
+        weather_summary = weather_json_data
+    else:
+        # 否則，呼叫轉換器
+        weather_summary = transform_observation_data(
+            weather_json_data, station_map["O-A0001-001"]
+        )
     all_cwa_summaries.append(weather_summary)
 
     # --- 雨量觀測 (O-A0002-001) ---
     rainfall_url = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0002-001"
     # ... (呼叫 API 取得 rainfall_json_data)
     rainfall_json_data = await get_cwa_api(rainfall_url, station_map["O-A0002-001"])
-    # 假設您已取得 JSON 數據 rainfall_json_data
 
-    # 呼叫轉換器
-    rainfall_summary = transform_rainfall_data(
-        rainfall_json_data, station_map["O-A0002-001"]
-    )
+    # 同樣的錯誤處理邏輯
+    if isinstance(rainfall_json_data, str):
+        rainfall_summary = rainfall_json_data
+    else:
+        # 呼叫轉換器
+        rainfall_summary = transform_rainfall_data(
+            rainfall_json_data, station_map["O-A0002-001"]
+        )
     all_cwa_summaries.append(rainfall_summary)
 
     # 最終傳給 AI 的結果

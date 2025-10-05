@@ -1,5 +1,6 @@
 # main.py
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware  # 導入 CORS 中間件
 from app.database import connect_to_mongo, close_mongo_connection, db_client
 from app.models import RecommendationRequest, RecommendationResponse
 from app.services.ai_service import get_ai_recommendation  # 導入 AI 服務
@@ -9,6 +10,22 @@ from app.services.data_fetcher import (
 )  # <-- 新增導入
 
 app = FastAPI(title="Hiking Weather Guide MVP")
+
+# 設置 CORS
+origins = [
+    "https://hiking2025-front.pages.dev",  # 前端網域
+    "http://localhost",
+    "http://localhost:3000",
+    "http://localhost:5173",  # Vite 預設開發端口
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],  # 允許所有 HTTP 方法
+    allow_headers=["*"],  # 允許所有 HTTP 標頭
+)
 
 # 設置連線事件
 app.add_event_handler("startup", connect_to_mongo)

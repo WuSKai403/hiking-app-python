@@ -114,3 +114,5 @@ pre-commit install -t pre-commit -t pre-push
 
 ```
 ```
+domain name: hikingweatherguide.com
+IP: cloudflare access tunnel + gce + domain name 不使用固定IP
