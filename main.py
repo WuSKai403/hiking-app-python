@@ -8,6 +8,7 @@ from app.services.data_fetcher import (
     get_cwa_data_for_ai,
     get_hiking_reviews,
 )  # <-- 新增導入
+from app.logger import logger  # 導入 logger
 
 app = FastAPI(title="Hiking Weather Guide MVP")
 
@@ -43,6 +44,7 @@ async def root():
 # 核心 API 端點：整合數據並返回 AI 建議
 @app.post("/api/recommendation", response_model=RecommendationResponse)
 async def get_recommendation(request: RecommendationRequest):
+    logger.info(f"Received recommendation request for trail_id: {request.trail_id}")
     # ----------------------------------------------------
     # 步驟 1: 資料庫快取檢查 (依據架構圖 B -> D)
     # ----------------------------------------------------
@@ -78,4 +80,8 @@ async def get_recommendation(request: RecommendationRequest):
     # TODO: 儲存 ai_result 到 MongoDB 中，作為下次請求的快取
     # await db_client.db.safety_cache.insert_one(ai_result.model_dump())
 
+    logger.info(
+        f"Successfully generated recommendation for trail_id: {request.trail_id}"
+    )
+    logger.debug(f"AI Result: {ai_result}")
     return ai_result

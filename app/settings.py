@@ -21,5 +21,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "Hiking Weather Guide MVP"
     APP_VERSION: str = "0.1.0"
 
+    LOG_LEVEL: str = "INFO"  # 可選，設定預設值
+    API_ENV: str = "development"  # 可選，設定預設值，可用於區分開發、測試、正式環境
+
 
 settings = Settings()

@@ -4,6 +4,7 @@ from google import genai
 from google.genai import types
 from app.settings import settings
 from app.models import RecommendationRequest, RecommendationResponse
+from app.logger import logger
 
 # 初始化 Gemini 客戶端
 # 它會自動從 settings.py (繼承自 .env 或環境變數) 載入 GEMINI_API_KEY
@@ -70,12 +71,12 @@ async def get_ai_recommendation(
         # 我們將 data_source 標記為實時 AI 判讀
         result = RecommendationResponse.model_validate_json(response.text)
         result.data_source = "Gemini Real-time"
-        print(f"AI Recommendation: {result}")
+        logger.info(f"AI Recommendation: {result}")
         return result
 
     except Exception as e:
         # 實戰中需要更詳細的錯誤日誌
-        print(f"Gemini API 呼叫失敗: {e}")
+        logger.error(f"Gemini API 呼叫失敗: {e}")
         # 返回一個錯誤的預設值或拋出 HTTP 異常
         return RecommendationResponse(
             safety_score=1,
