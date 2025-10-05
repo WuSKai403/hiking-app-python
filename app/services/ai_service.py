@@ -66,17 +66,41 @@ async def get_ai_recommendation(
             config=config,
         )
 
-        # 解析 JSON 字串為 Pydantic Model
-        # 注意: response.text 是一個 JSON 字串，需要用 .model_validate_json 解析
-        # 我們將 data_source 標記為實時 AI 判讀
+        # 當使用 response_schema 時，genai 函式庫會自動解析 JSON。
+        # 結果會是一個 Pydantic 模型實例，而不是 JSON 字串。
+        # 我們可以直接從 response 中提取它。
+        # 注意：這裡的寫法是基於 google-genai v0.5+ 的行為
+        if not response.candidates:
+            raise ValueError("Gemini API did not return any candidates.")
+
+        # 直接從回應中獲取 Pydantic 模型
+        # 函式庫會將解析後的物件放在 function_call.args 中
+        # 或是直接作為 part 本身 (取決於具體模型和版本)
+        # 為了穩健起見，我們先檢查 part 的結構
+        part = response.candidates[0].content.parts[0]
+
+        # 假設 genai 將其解析為 RecommendationResponse 的實例並放在 function_call 中
+        # 實際路徑可能需要根據 debug 調整，但這是最常見的模式
+        # 為了簡化，我們先假設 genai 直接回傳了可驗證的 dict
+        # 讓我們直接使用 response.text，但加上詳細的日誌
+        logger.debug(f"Raw Gemini response text: {response.text}")
         result = RecommendationResponse.model_validate_json(response.text)
+
         result.data_source = "Gemini Real-time"
-        logger.info(f"AI Recommendation: {result}")
+        logger.info(
+            f"Successfully parsed AI Recommendation for trail_id: {request.trail_id}"
+        )
         return result
 
     except Exception as e:
-        # 實戰中需要更詳細的錯誤日誌
-        logger.error(f"Gemini API 呼叫失敗: {e}")
+        # 加上更詳細的錯誤日誌，包含 response 內容
+        logger.error(
+            f"Gemini API call or parsing failed for trail_id: {request.trail_id}. Error: {e}",
+            exc_info=True,
+        )
+        # 嘗試記錄下原始 response (如果有的話)
+        if "response" in locals() and hasattr(response, "text"):
+            logger.error(f"Raw response content on error: {response.text}")
         # 返回一個錯誤的預設值或拋出 HTTP 異常
         return RecommendationResponse(
             safety_score=1,
