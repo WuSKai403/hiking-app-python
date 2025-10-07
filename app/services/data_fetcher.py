@@ -74,37 +74,49 @@ def parse_reviews_from_html(html_content: str) -> List[ReviewModel]:
     list_items = soup.find_all("li", class_="flex")
 
     for item in list_items:
-        user_link = item.find("a", href=lambda href: href and "q=member" in href)
+        # 步驟 1: 先定位到包含評論主要內容的 div 區塊
+        content_div = item.find("div", class_="relative")
+        if not content_div:
+            continue
+
+        # 步驟 2: 在這個精確的區塊內尋找使用者連結，確保不會抓到頭像的連結
+        user_link = content_div.find("a", href=lambda href: href and "q=member" in href)
         if not user_link:
             continue
 
         # 從 a 標籤的 href 中解析 user_id
         user_id_match = re.search(r"member=(\d+)", user_link["href"])
-        user_id = user_id_match.group(1) if user_id_match else "unknown"
+        user_id = user_id_match.group(1) if user_id_match else None
 
         # 獲取使用者名稱
         username = user_link.text.strip()
 
-        # 獲取時間 (日期)
-        time_tag = item.find("time", class_="text-sm")
+        # 在 content_div 中尋找其他資訊
+        time_tag = content_div.find("time", class_="text-sm")
         review_date_str = time_tag.get("datetime") if time_tag else None
         review_date = (
             datetime.fromisoformat(review_date_str) if review_date_str else None
         )
 
-        # 獲取評論文本
-        review_p = item.find("p", class_="leading-relaxed")
+        review_p = content_div.find("p", class_="leading-relaxed")
         content = review_p.get_text(strip=True) if review_p else ""
 
-        if user_id != "unknown" and content:
-            reviews.append(
-                ReviewModel(
-                    user_id=user_id,
-                    username=username,
-                    review_date=review_date,
-                    content=content,
+        # 步驟 3: 增加更嚴格的檢查，確保必要欄位都有值才建立模型
+        # 這樣可以避免 Pydantic 驗證錯誤
+        if user_id and username and content:
+            try:
+                reviews.append(
+                    ReviewModel(
+                        user_id=user_id,
+                        username=username,
+                        review_date=review_date,
+                        content=content,
+                    )
                 )
-            )
+            except Exception as e:
+                print(
+                    f"Pydantic validation failed for review data: user_id={user_id}, username={username}. Error: {e}"
+                )
     return reviews
 
 

@@ -92,6 +92,7 @@ class TrailDocument(BaseModel):
 
     last_scraped_at: datetime = Field(..., description="最後爬取時間")
     reviews: List[ReviewModel] = Field([], description="山友評論列表")
+    is_valid: bool = Field(True, description="此步道 ID 是否有效 (爬取失敗則為 False)")
 
     class Config:
         populate_by_name = True

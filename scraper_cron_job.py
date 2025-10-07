@@ -29,7 +29,7 @@ async def run_full_scan(start_id: int, end_id: int):
     """執行全量掃描"""
     print(f"全量掃描啟動：開始爬取步道 ID 從 {start_id} 到 {end_id}...")
     for trail_id in range(start_id, end_id + 1):
-        if await database_service.is_invalid_trail_id(trail_id):
+        if not await database_service.is_trail_valid(trail_id):
             print(f"Skipping known invalid ID: {trail_id}")
             continue
         try:
@@ -48,7 +48,7 @@ async def run_incremental_scan(probe_limit: int):
 
     consecutive_failures = 0
     for new_id in range(max_id + 1, max_id + 1 + probe_limit):
-        if await database_service.is_invalid_trail_id(new_id):
+        if not await database_service.is_trail_valid(new_id):
             print(f"Skipping known invalid ID: {new_id}")
             continue
 

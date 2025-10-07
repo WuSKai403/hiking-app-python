@@ -22,7 +22,7 @@ async def scrape_and_save_trail(trail_id: int):
 
     if not details:
         logger.warning(f"無法獲取步道 {trail_id} 的基本資料，將其標記為無效 ID。")
-        await database_service.add_invalid_trail_id(trail_id)
+        await database_service.mark_trail_as_invalid(trail_id)
         return
 
     trail_doc = TrailDocument(

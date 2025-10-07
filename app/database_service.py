@@ -3,28 +3,41 @@
 from app.database import db_client
 from app.models import TrailDocument
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 from fastapi import HTTPException
 
 # 定義集合名稱，允許被環境變數覆蓋以利測試
 TRAIL_COLLECTION = os.getenv("TRAIL_COLLECTION_NAME", "trails")
-INVALID_ID_COLLECTION = os.getenv("INVALID_ID_COLLECTION_NAME", "invalid_trail_ids")
 
 
-async def add_invalid_trail_id(trail_id: int):
-    """將無效的 trail_id 記錄到資料庫中"""
-    collection = db_client.db[INVALID_ID_COLLECTION]
-    # 使用 upsert 避免重複記錄
+async def mark_trail_as_invalid(trail_id: int):
+    """將指定的 trail_id 在 trails 集合中標記為無效"""
+    collection = db_client.db[TRAIL_COLLECTION]
     await collection.update_one(
-        {"_id": trail_id}, {"$set": {"_id": trail_id}}, upsert=True
+        {"_id": trail_id},
+        {
+            "$set": {
+                "is_valid": False,
+                "last_scraped_at": datetime.now(timezone.utc),
+            }
+        },
+        upsert=True,
     )
 
 
-async def is_invalid_trail_id(trail_id: int) -> bool:
-    """檢查指定的 trail_id 是否已被記錄為無效"""
-    collection = db_client.db[INVALID_ID_COLLECTION]
-    return await collection.find_one({"_id": trail_id}) is not None
+async def is_trail_valid(trail_id: int) -> bool:
+    """
+    檢查指定的 trail_id 是否有效。
+    如果文件存在且 is_valid 為 True，則返回 True。
+    如果文件不存在，也返回 True (表示尚未檢查，應嘗試抓取)。
+    如果文件存在但 is_valid 為 False，則返回 False。
+    """
+    collection = db_client.db[TRAIL_COLLECTION]
+    doc = await collection.find_one({"_id": trail_id}, {"is_valid": 1})
+    if doc:
+        return doc.get("is_valid", True)
+    return True
 
 
 async def get_trail_by_id(trail_id: int) -> Optional[TrailDocument]:
@@ -51,16 +64,18 @@ async def update_trail(trail_document: TrailDocument) -> None:
 
 
 async def get_max_trail_id() -> int:
-    """獲取目前資料庫中最大的 trail_id"""
+    """獲取目前資料庫中最大的有效 trail_id"""
     collection = db_client.db[TRAIL_COLLECTION]
-    max_id_doc = await collection.find_one(sort=[("_id", -1)])
+    # 只在有效的步道中尋找最大 ID
+    max_id_doc = await collection.find_one({"is_valid": True}, sort=[("_id", -1)])
     return max_id_doc["_id"] if max_id_doc else 0
 
 
 async def get_all_trail_ids() -> list[int]:
-    """獲取資料庫中所有已存在的 trail_id"""
+    """獲取資料庫中所有有效的 trail_id"""
     collection = db_client.db[TRAIL_COLLECTION]
-    cursor = collection.find({}, {"_id": 1})
+    # 只返回有效的步道 ID
+    cursor = collection.find({"is_valid": True}, {"_id": 1})
     return [doc["_id"] async for doc in cursor]
 
 
