@@ -1,14 +1,18 @@
 # main.py
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware  # 導入 CORS 中間件
-from app.database import connect_to_mongo, close_mongo_connection, db_client
-from app.models import RecommendationRequest, RecommendationResponse
-from app.services.ai_service import get_ai_recommendation  # 導入 AI 服務
-from app.services.data_fetcher import (
-    get_cwa_data_for_ai,
-    get_hiking_reviews,
-)  # <-- 新增導入
-from app.logger import logger  # 導入 logger
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
+from app.database import connect_to_mongo, close_mongo_connection
+from app.models import (
+    RecommendationRequest,
+    RecommendationResponse,
+    TrailDocument,
+)
+from app.services.ai_service import get_ai_recommendation
+from app.services.data_fetcher import get_cwa_data_for_ai, get_hiking_reviews
+from app import database_service
+from app.tasks import scrape_and_save_trail
+from app.logger import logger
+import asyncio
 
 app = FastAPI(title="Hiking Weather Guide MVP")
 
@@ -35,33 +39,22 @@ app.add_event_handler("shutdown", close_mongo_connection)
 
 @app.get("/")
 async def root():
-    # 測試連線是否成功
-    if db_client.db:
-        return {"status": "MongoDB Connected", "service": "ready"}
-    return {"status": "MongoDB Failed", "service": "error"}
+    # 簡單的首頁
+    return {"message": "Hiking2025 API is running."}
 
 
-# 核心 API 端點：整合數據並返回 AI 建議
+# --- Core API Endpoint ---
+
+
 @app.post("/api/recommendation", response_model=RecommendationResponse)
 async def get_recommendation(request: RecommendationRequest):
     logger.info(f"Received recommendation request for trail_id: {request.trail_id}")
-    # ----------------------------------------------------
-    # 步驟 1: 資料庫快取檢查 (依據架構圖 B -> D)
-    # ----------------------------------------------------
-    # TODO: 實際的邏輯應該是：
-    # 1. 查詢 MongoDB (db_client.db.safety_cache) 是否有 {trail_id} 且時間未過期的結果。
-    # 2. 如果有，直接返回 (result.data_source = "Cache")
 
-    # 假設我們現在強制走 AI 判讀流程 (MVP 第一版)
-    # if cached_result:
-    #    return cached_result
-
-    # ----------------------------------------------------
-    # 步驟 2: 呼叫外部資料源 (依據架構圖 B -> C1/C2)
-    # ----------------------------------------------------
-    # 使用實際服務呼叫 (可以考慮用 asyncio.gather 加速並行呼叫)
+    # 步驟 1: 呼叫 CWA API
     CWA_data = await get_cwa_data_for_ai(request.trail_id)
-    reviews = await get_hiking_reviews(request.trail_id)
+
+    # 步驟 2: 從資料庫獲取格式化後的評論字串
+    reviews = await get_hiking_reviews(int(request.trail_id))
 
     # MVP 模擬數據
     # mock_weather_data = "預報顯示：下午 1 點後有陣雨，夜間氣溫驟降至 10 度，風速 5 級。"
@@ -70,12 +63,12 @@ async def get_recommendation(request: RecommendationRequest):
     # )
 
     # ----------------------------------------------------
-    # 步驟 3: 呼叫 AI 判斷核心 (依據架構圖 B -> E)
+    # 步驟 3: 呼叫 AI 判斷核心
     # ----------------------------------------------------
     ai_result = await get_ai_recommendation(request, CWA_data, reviews)
 
     # ----------------------------------------------------
-    # 步驟 4: 儲存結果回資料庫 (依據架構圖 E -> D)
+    # 步驟 4: 儲存 AI 結果快取
     # ----------------------------------------------------
     # TODO: 儲存 ai_result 到 MongoDB 中，作為下次請求的快取
     # await db_client.db.safety_cache.insert_one(ai_result.model_dump())
@@ -85,3 +78,45 @@ async def get_recommendation(request: RecommendationRequest):
     )
     logger.debug(f"AI Result: {ai_result}")
     return ai_result
+
+
+# --- Trail Data Management APIs ---
+
+
+@app.post("/api/trails/scrape/{trail_id}", status_code=202)
+async def scrape_trail_endpoint(trail_id: int, background_tasks: BackgroundTasks):
+    """
+    觸發單一筆步道資料的背景爬取任務。
+    """
+    background_tasks.add_task(scrape_and_save_trail, trail_id)
+    return {"message": f"已開始背景爬取步道 ID: {trail_id}"}
+
+
+@app.post("/api/trails/scrape-range", status_code=202)
+async def scrape_trail_range_endpoint(
+    start_id: int, end_id: int, background_tasks: BackgroundTasks
+):
+    """
+    觸發一個範圍的步道資料背景爬取任務。
+    """
+    if start_id > end_id:
+        raise HTTPException(status_code=400, detail="start_id 不能大於 end_id")
+
+    async def scrape_range():
+        for trail_id in range(start_id, end_id + 1):
+            await scrape_and_save_trail(trail_id)
+            await asyncio.sleep(1)  # 避免請求過於頻繁
+
+    background_tasks.add_task(scrape_range)
+    return {"message": f"已開始背景爬取步道 ID 從 {start_id} 到 {end_id}"}
+
+
+@app.get("/api/trails/{trail_id}", response_model=TrailDocument)
+async def get_trail_endpoint(trail_id: int):
+    """
+    從資料庫中獲取單一筆步道資料。
+    """
+    trail = await database_service.get_trail_by_id(trail_id)
+    if not trail:
+        raise HTTPException(status_code=404, detail=f"找不到步道 ID: {trail_id}")
+    return trail

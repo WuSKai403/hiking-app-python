@@ -65,6 +65,63 @@ graph TD
 | **環境管理** | **uv (Rust-based)** | 採用 `uv` 實現 **10x+** 於傳統工具的依賴安裝速度和環境可重現性。 |
 | **程式碼品質** | **Ruff (Rust-based)** | 用於 `pre-commit` 鉤子，以極致的速度完成格式化、Import 排序與 Linting。 |
 
+## 🧗 步道資料管理與爬蟲
+
+本系統包含一套完整的步道資料爬取、儲存與查詢機制。
+
+### API Endpoints
+
+-   **`GET /api/trails/{trail_id}`**
+    -   **功能**: 從 MongoDB 中查詢指定 ID 的步道資料。
+    -   **回傳**: `TrailDocument` 模型結構的 JSON 資料。
+
+-   **`POST /api/trails/scrape/{trail_id}`**
+    -   **功能**: 觸發一個**背景任務**，爬取並更新指定 ID 的步道資料。
+    -   **回傳**: `202 Accepted`，表示任務已開始。
+
+-   **`POST /api/trails/scrape-range`**
+    -   **功能**: 觸發一個**背景任務**，爬取並更新一個 ID 範圍內的所有步道資料。
+    -   **參數**: `start_id` (int), `end_id` (int)。
+    -   **回傳**: `202 Accepted`，表示任務已開始。
+
+### 排程爬蟲腳本 (`scraper_cron_job.py`)
+
+此腳本專為部署在 GCE VM 上並由 `cron` 定期觸發而設計，支援**全量**與**增量**兩種更新模式。
+
+-   **功能**:
+    -   **增量更新 (Incremental Update)**：推薦用於每週執行的常規任務。
+        1.  **探測新步道**：從目前資料庫中最大的 ID 向上探測，以發現新的步道資料。
+        2.  **更新舊評論**：遍歷所有已存在的步道，並只為它們增量添加新的評論。
+    -   **全量更新 (Full Scan)**：用於初始化資料庫或需要完整重建資料的場景。
+
+-   **使用方式**:
+    ```bash
+    # 執行增量更新 (推薦)
+    python scraper_cron_job.py --mode incremental --probe-limit 100
+
+    # 執行全量掃描
+    python scraper_cron_job.py --mode full --start-id 1 --end-id 2300
+    ```
+
+-   **建議 Crontab 設定 (增量更新)**:
+    ```cron
+    # 每週日凌晨 3 點執行增量更新
+    0 3 * * 0 /usr/bin/python /path/to/project/scraper_cron_job.py --mode incremental >> /var/log/scraper.log 2>&1
+    ```
+
+## 🔮 未來展望與改進方向 (Future Work)
+
+1.  **CI/CD 自動化部署**:
+    -   我們已經設計了一套基於 **GitHub Actions** 和 **Cloudflare Tunnel** 的安全 CI/CD 流程 (`.github/workflows/deploy.yml`)。待 DNS 指向 Cloudflare 後，即可完成相關設定，實現 `main` 分支的自動化部署，無需手動登入伺服器。
+
+2.  **爬蟲健壯性強化**:
+    -   **代理與 User-Agent 輪換**: 若未來目標網站加入更嚴格的反爬蟲機制，可引入代理伺服器池 (Proxy Pool) 和 User-Agent 輪換，以降低被封鎖的風險。
+    -   **錯誤重試機制**: 可為網路請求加入更完善的重試邏輯 (例如使用 `tenacity` 函式庫)，以應對暫時性的網路問題。
+
+3.  **資料一致性與監控**:
+    -   **資料驗證**: 在資料存入資料庫前，加入更嚴格的 Pydantic 驗證，確保所有欄位的格式和類型都符合預期。
+    -   **監控與警報**: 可建立一個簡單的儀表板或發送通知 (例如到 Slack)，監控每次排程爬蟲的執行狀況 (成功、失敗、新增數量)，以便及時發現問題。
+
 ## 🚀 本地開發與運行 (Local Development)
 
 ### 1\. 環境初始化 (使用 `uv`)

@@ -16,7 +16,7 @@ db_client = Database()
 async def connect_to_mongo():
     """連接 MongoDB"""
     print("Connecting to MongoDB...")
-    db_client.client = AsyncIOMotorClient(settings.MONGO_URI)
+    db_client.client = AsyncIOMotorClient(settings.MONGO_URI, tz_aware=True)
     db_client.db = db_client.client[settings.DATABASE_NAME]
     try:
         # 嘗試 ping 測試連線

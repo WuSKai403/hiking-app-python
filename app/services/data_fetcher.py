@@ -2,13 +2,18 @@
 
 import httpx
 from app.settings import settings
-import random
+import asyncio
 from bs4 import BeautifulSoup
 from app.services.cwa_transformer import (
     transform_observation_data,
     transform_rainfall_data,
 )
-from typing import Dict
+from app.services.trail_scraper import get_total_review_pages
+from typing import Dict, List
+from app import database_service
+from app.models import ReviewModel
+from datetime import datetime
+import re
 
 
 async def get_cwa_api(url: str, location_id: str) -> str:
@@ -41,82 +46,110 @@ async def get_cwa_api(url: str, location_id: str) -> str:
         return f"CWA 資料擷取例外: {e}"
 
 
-# 定義爬蟲的 Base URL 和最大頁數
 BASE_REVIEW_URL = "https://hiking.biji.co/trail/ajax/load_reviews"
-MAX_PAGE = 16
-# MVP 階段只取 ID 108 測試
-TRAIL_ID_MOCK = 108
 
 
-async def get_hiking_reviews(trail_id: str) -> str:
-    """
-    呼叫健行筆記 API，隨機擷取一頁評論，並解析出評論內容。
-    """
-    # 步驟 1: 隨機選擇頁數 (1 到 MAX_PAGE)
-    # 根據您的需求，MVP 階段只針對 ID 108 進行測試
-    page_to_fetch = random.randint(1, MAX_PAGE)
-
-    # 在 MVP 階段，強制使用 TRAIL_ID_MOCK
-    current_trail_id = TRAIL_ID_MOCK
-
-    url = f"{BASE_REVIEW_URL}?id={current_trail_id}&page={page_to_fetch}"
-
+async def fetch_review_page(client: httpx.AsyncClient, trail_id: int, page: int) -> str:
+    """非同步抓取單一頁面的評論 HTML"""
+    url = f"{BASE_REVIEW_URL}?id={trail_id}&page={page}"
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            # 由於這是 AJAX API，我們直接模擬瀏覽器請求
-            response = await client.get(
-                url, headers={"X-Requested-With": "XMLHttpRequest"}
-            )
-            response.raise_for_status()
-
-            # 健行筆記的評論 API 返回 JSON
-            data = response.json()
-
-            if data.get("status") != "success":
-                return f"近期山友評論（{trail_id}）：無評論資料或 API 錯誤。"
-
-            # 步驟 2: 提取 HTML 字串並解析
-            html_view = data["data"]["view"]
-
-            # BeautifulSoup 解析 HTML
-            soup = BeautifulSoup(html_view, "html.parser")
-
-            # 步驟 3: 提取日期和文本，並格式化
-            formatted_reviews = []
-
-            # 提取 li 項目，以便取得評論日期 (time tag)
-            list_items = soup.find_all("li", class_="flex")
-
-            for item in list_items:
-                # 獲取時間 (日期)
-                time_tag = item.find("time", class_="text-sm")
-                review_date = time_tag.get("datetime") if time_tag else "日期不詳"
-
-                # 獲取評論文本
-                review_p = item.find("p", class_="leading-relaxed")
-                review_text = review_p.get_text(strip=True) if review_p else ""
-
-                # if review_text:
-                #     # 解碼 Unicode 16 進位字元 (e.g. \u5f88\u597d -> 很好)
-                #     decoded_text = bytes(review_text, "latin1").decode("unicode_escape")
-
-                formatted_reviews.append(f"[{review_date}] {review_text}")
-                print(f"Extracted Review: [{review_date}] {review_text}")
-
-            if not formatted_reviews:
-                return f"近期山友評論（{current_trail_id}）：該頁（{page_to_fetch}）無有效評論。"
-
-            # 將所有評論用換行符號合併成一個字串
-            review_string = "\n".join(formatted_reviews)
-
-            return f"近期山友評論（健行筆記 ID {current_trail_id}, 隨機頁 {page_to_fetch}）：\n---\n{review_string}\n---"
-
+        response = await client.get(url, headers={"X-Requested-With": "XMLHttpRequest"})
+        response.raise_for_status()
+        data = response.json()
+        if data.get("status") == "success":
+            return data["data"]["view"]
+        return ""
     except httpx.HTTPStatusError as e:
-        print(f"評論 API 請求失敗: HTTP 錯誤 {e.response.status_code}")
-        return f"評論 API 連線失敗或無資料: {e.response.status_code}"
+        print(f"評論 API 請求失敗 (Page {page}): HTTP 錯誤 {e.response.status_code}")
+        return ""
     except Exception as e:
-        print(f"評論 API 呼叫發生例外: {e}")
-        return f"評論 API 擷取例外: {e}"
+        print(f"評論 API 呼叫發生例外 (Page {page}): {e}")
+        return ""
+
+
+def parse_reviews_from_html(html_content: str) -> List[ReviewModel]:
+    """從 HTML 內容中解析出 ReviewModel 物件列表"""
+    soup = BeautifulSoup(html_content, "html.parser")
+    reviews = []
+    list_items = soup.find_all("li", class_="flex")
+
+    for item in list_items:
+        user_link = item.find("a", href=lambda href: href and "q=member" in href)
+        if not user_link:
+            continue
+
+        # 從 a 標籤的 href 中解析 user_id
+        user_id_match = re.search(r"member=(\d+)", user_link["href"])
+        user_id = user_id_match.group(1) if user_id_match else "unknown"
+
+        # 獲取使用者名稱
+        username = user_link.text.strip()
+
+        # 獲取時間 (日期)
+        time_tag = item.find("time", class_="text-sm")
+        review_date_str = time_tag.get("datetime") if time_tag else None
+        review_date = (
+            datetime.fromisoformat(review_date_str) if review_date_str else None
+        )
+
+        # 獲取評論文本
+        review_p = item.find("p", class_="leading-relaxed")
+        content = review_p.get_text(strip=True) if review_p else ""
+
+        if user_id != "unknown" and content:
+            reviews.append(
+                ReviewModel(
+                    user_id=user_id,
+                    username=username,
+                    review_date=review_date,
+                    content=content,
+                )
+            )
+    return reviews
+
+
+async def get_all_reviews_for_trail(trail_id: int) -> List[ReviewModel]:
+    """
+    呼叫健行筆記 API，擷取並解析指定步道的所有評論。
+    """
+    total_pages = await get_total_review_pages(trail_id)
+
+    if total_pages == 0:
+        return []
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        # 建立所有頁面的抓取任務
+        tasks = [
+            fetch_review_page(client, trail_id, page)
+            for page in range(1, total_pages + 1)
+        ]
+        # 並發執行所有任務
+        html_results = await asyncio.gather(*tasks)
+
+    # 將所有 HTML 片段合併成一個
+    full_html = "".join(html_results)
+
+    if not full_html:
+        return []
+
+    # 一次性解析所有 HTML 並回傳 ReviewModel 列表
+    return parse_reviews_from_html(full_html)
+
+
+async def get_hiking_reviews(trail_id: int) -> str:
+    """
+    從資料庫獲取指定步道的評論，並格式化為單一字串。
+    """
+    trail_data = await database_service.get_trail_data_from_db(trail_id)
+
+    if not trail_data.reviews:
+        return "無相關評論。"
+
+    reviews_str_list = [
+        f"[{r.review_date.strftime('%Y-%m-%d') if r.review_date else '日期不詳'}] {r.content}"
+        for r in trail_data.reviews
+    ]
+    return "\n".join(reviews_str_list)
 
 
 # 假設您有一個函式可以將 trail_id 轉換為一組 CWA 測站 ID

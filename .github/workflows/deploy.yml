@@ -1,0 +1,53 @@
+name: Deploy to GCE via Cloudflare Tunnel
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install cloudflared
+      run: |
+        sudo wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared
+        sudo chmod +x /usr/local/bin/cloudflared
+
+    - name: Setup SSH
+      uses: webfactory/ssh-agent@v0.5.3
+      with:
+        ssh-private-key: ${{ secrets.GCE_SSH_PRIVATE_KEY }}
+
+    - name: Configure SSH for Cloudflare Tunnel
+      run: |
+        mkdir -p ~/.ssh
+        # 动态创建 config 文件，这是 GitHub Actions Runner 需要的
+        # GCE VM 上不需要这个文件
+        echo "Host ${{ secrets.GCE_HOST }}" >> ~/.ssh/config
+        echo "  ProxyCommand /usr/local/bin/cloudflared access ssh --hostname %h" >> ~/.ssh/config
+        chmod 600 ~/.ssh/config
+        ssh-keyscan -H ${{ secrets.GCE_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Deploy to GCE
+      run: |
+        ssh ${{ secrets.GCE_USER }}@${{ secrets.GCE_HOST }} << 'EOF'
+          cd ${{ secrets.PROJECT_PATH }}
+
+          echo ">>> Pulling latest code..."
+          git pull origin main
+
+          echo ">>> Syncing Python dependencies with uv..."
+          uv sync
+
+          echo ">>> Restarting FastAPI application with pm2..."
+          # 假设您的 pm2 启动设定档名为 ecosystem.config.js
+          # pm2 reload 会实现无缝重启
+          pm2 reload ecosystem.config.js
+
+          echo ">>> Deployment successful!"
+        EOF
