@@ -9,7 +9,7 @@ hiking studio project of 2023 updated in 2025
 [![2023 資料創新應用競賽](https://img.shields.io/badge/Competition-Silver_Award-silver)](https://example.com/link-to-competition)
 ## 📜 專案簡介 (Project Overview)
 
-**「快樂登山家」**是一個以 **AI 驅動**的安全指南服務。此專案榮獲 **2023 年資料創新應用競賽第二名 (銀獎)** 的肯定。
+**「快樂登山家」**是一個以 **AI 驅動**的安全指南服務。此專案榮獲 **2021 年資料創新應用競賽第二名 (銀獎)** 的肯定。
 
 我們的核心目標是：**減少初級登山者因不熟悉山徑、資訊缺乏所導致的潛在危險。**
 
