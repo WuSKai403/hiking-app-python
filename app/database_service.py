@@ -54,8 +54,10 @@ async def get_trail_by_id(trail_id: int) -> Optional[TrailDocument]:
 async def update_trail(trail_document: TrailDocument) -> None:
     """
     將步道資料更新或插入 (upsert) 到 MongoDB 中。
+    同時更新評論數量。
     """
     collection = db_client.db[TRAIL_COLLECTION]
+    trail_document.review_count = len(trail_document.reviews)  # 計算評論數量
     await collection.replace_one(
         {"_id": trail_document.id},
         trail_document.model_dump(by_alias=True),
@@ -77,6 +79,33 @@ async def get_all_trail_ids() -> list[int]:
     # 只返回有效的步道 ID
     cursor = collection.find({"is_valid": True}, {"_id": 1})
     return [doc["_id"] async for doc in cursor]
+
+
+async def get_all_trails_summary() -> list[dict]:
+    """獲取所有有效步道的 ID、名稱、難度、地點和評論數量"""
+    collection = db_client.db[TRAIL_COLLECTION]
+    cursor = collection.find(
+        {"is_valid": True},
+        {
+            "_id": 1,
+            "name": 1,
+            "difficulty": 1,
+            "location": 1,
+            "review_count": 1,  # 直接獲取 review_count
+        },
+    )
+    trails = []
+    async for doc in cursor:
+        trails.append(
+            {
+                "id": doc["_id"],
+                "name": doc.get("name", "N/A"),
+                "difficulty": doc.get("difficulty", "N/A"),
+                "location": doc.get("location", "N/A"),
+                "review_count": doc.get("review_count", 0),  # 使用已儲存的欄位
+            }
+        )
+    return trails
 
 
 async def get_trail_last_scraped_at(trail_id: int) -> Optional[datetime]:
@@ -127,15 +156,17 @@ async def add_new_reviews_to_trail(
         if review_tuple not in existing_reviews_set:
             reviews_to_add.append(new_review)
 
-    # 4. 如果有新評論，則使用 $addToSet 和 $set 進行更新
+    # 4. 如果有新評論，則使用 $addToSet、$inc 和 $set 進行更新
     if reviews_to_add:
-        print(f"發現 {len(reviews_to_add)} 則新評論 for trail_id={trail_id}。")
+        update_count = len(reviews_to_add)
+        print(f"發現 {update_count} 則新評論 for trail_id={trail_id}。")
         await collection.update_one(
             {"_id": trail_id},
             {
                 "$addToSet": {
                     "reviews": {"$each": [r.model_dump() for r in reviews_to_add]}
                 },
+                "$inc": {"review_count": update_count},  # 原子性地增加計數
                 "$set": {"last_scraped_at": last_scraped_at},
             },
         )

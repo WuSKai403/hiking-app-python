@@ -145,3 +145,6 @@ __pycache__/
 *.log
 data/
 .todo.md
+
+# golang 後端資料夾
+hiking-app-golang/

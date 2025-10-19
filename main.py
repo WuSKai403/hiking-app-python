@@ -120,3 +120,12 @@ async def get_trail_endpoint(trail_id: int):
     if not trail:
         raise HTTPException(status_code=404, detail=f"找不到步道 ID: {trail_id}")
     return trail
+
+
+@app.get("/api/trails")
+async def get_all_trails_summary_endpoint():
+    """
+    獲取所有有效步道的摘要資訊。
+    """
+    trails = await database_service.get_all_trails_summary()
+    return trails
