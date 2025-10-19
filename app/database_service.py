@@ -85,7 +85,7 @@ async def get_all_trails_summary() -> list[dict]:
     """獲取所有有效步道的 ID、名稱、難度、地點和評論數量"""
     collection = db_client.db[TRAIL_COLLECTION]
     cursor = collection.find(
-        {"is_valid": True},
+        {"is_valid": True, "review_count": {"$gt": 1}},  # 僅篩選評論數 > 1 的步道
         {
             "_id": 1,
             "name": 1,
