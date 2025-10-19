@@ -5,7 +5,7 @@ from app.models import RecommendationRequest, RecommendationResponse
 from app.services.ai_service import get_ai_recommendation
 from app.tasks import scrape_and_save_trail
 from scraper_cron_job import update_reviews_for_trail
-from app.database_service import TRAIL_COLLECTION, INVALID_ID_COLLECTION
+from app.database_service import TRAIL_COLLECTION
 
 # 確定 API Keys 是否存在
 pytestmark = pytest.mark.skipif(
@@ -84,12 +84,9 @@ async def test_scrape_and_save_trail_flow(test_db, monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_scrape_invalid_id(test_db, monkeypatch):
-    """整合測試：驗證爬取一個無效 ID 時，會將其正確記錄。"""
+    """整合測試：驗證爬取一個無效 ID 時，會將其正確記錄為 is_valid: false。"""
     # 1. 設定環境變數
     monkeypatch.setenv("TRAIL_COLLECTION_NAME", f"{TRAIL_COLLECTION}_test")
-    monkeypatch.setenv(
-        "INVALID_ID_COLLECTION_NAME", f"{INVALID_ID_COLLECTION}_test"
-    )  # 雖然沒在 database_service 用到，但保持一致
     import importlib
     from app import database_service
 
@@ -101,16 +98,12 @@ async def test_scrape_invalid_id(test_db, monkeypatch):
     await scrape_and_save_trail(invalid_trail_id)
 
     # 3. 驗證
-    # 驗證 trails 集合中沒有這筆資料
+    # 驗證 trails 集合中存在這筆資料，但 is_valid 為 false
     trail_data = await test_db["trails"].find_one({"_id": invalid_trail_id})
-    assert trail_data is None
-
-    # 驗證 invalid_ids 集合中有這筆紀錄
-    invalid_id_data = await test_db["invalid_ids"].find_one({"_id": invalid_trail_id})
-    assert invalid_id_data is not None
-    assert invalid_id_data["_id"] == invalid_trail_id
+    assert trail_data is not None
+    assert trail_data["is_valid"] is False
+    assert "reviews" not in trail_data  # 不應該有評論
 
     # --- 清理 ---
     monkeypatch.delenv("TRAIL_COLLECTION_NAME")
-    monkeypatch.delenv("INVALID_ID_COLLECTION_NAME")
     importlib.reload(database_service)

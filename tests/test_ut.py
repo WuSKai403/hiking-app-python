@@ -10,8 +10,7 @@ async def test_root_status_check(async_client: AsyncClient):
     # 此測試應只檢查本地連線狀態，不會觸發外部網路
     response = await async_client.get("/")
     assert response.status_code == 200
-    assert "MongoDB" in response.json().get("status")
-    assert response.json().get("service") in ["ready", "error"]
+    assert response.json() == {"message": "Hiking2025 API is running."}
 
 
 # 測試核心 AI 推薦端點，必須模擬 Gemini API 呼叫
@@ -26,16 +25,14 @@ async def test_post_recommendation_success(async_client: AsyncClient, mocker):
     )
 
     # 2. 使用 mocker.patch 模擬 (Mock) 外部呼叫
-    # 我們模擬的是 services/ai_service.py 中的 get_ai_recommendation 函數
-    mocker.patch(
-        "main.get_ai_recommendation",
-        # return_value 必須是一個 Coroutine 物件 (因為原函數是 async)
-        return_value=mock_ai_response,
-    )
+    # 模擬在 `get_recommendation` 函數中所有會觸發外部 I/O 或需要 int(trail_id) 的函數
+    mocker.patch("main.get_cwa_data_for_ai", return_value="Mocked CWA Data")
+    mocker.patch("main.get_hiking_reviews", return_value="Mocked Review Data")
+    mocker.patch("main.get_ai_recommendation", return_value=mock_ai_response)
 
     # 3. 執行 API 測試
     test_request_data = RecommendationRequest(
-        trail_id="HEB001",
+        trail_id="108",
         user_path_desc="新手，下午 2 點出發，單人輕裝。",
     )
 
